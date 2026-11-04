@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRAG Enterprise Engine | Agentic Retrieval & Reranking</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            royal: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              200: '#c7d2fe',
+              300: '#a5b4fc',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+              950: '#0f172a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background: radial-gradient(circle at 50% 0%, #3065ff 0%, #1a49f0 40%, #0f32cf 75%, #0b2499 100%);
+      background-attachment: fixed;
+    }
+    .white-card {
+      background: #ffffff;
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      box-shadow: 0 12px 30px -4px rgba(15, 35, 120, 0.18), 0 4px 10px -2px rgba(15, 35, 120, 0.08);
+    }
+    .node-active {
+      border: 2px solid #2563eb !important;
+      box-shadow: 0 0 16px rgba(37, 99, 235, 0.35) !important;
+      background: #eff6ff !important;
+    }
+    .node-rewritten {
+      border: 2px solid #f59e0b !important;
+      box-shadow: 0 0 16px rgba(245, 158, 11, 0.35) !important;
+      background: #fffbeb !important;
+    }
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1e3a8a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #60a5fa;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="text-slate-900 min-h-screen font-sans antialiased selection:bg-blue-600 selection:text-white pb-12">
+
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-white/20 bg-blue-900/40 sticky top-0 z-50 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-white text-blue-600 flex items-center justify-center shadow-lg shadow-blue-950/20 font-extrabold text-xl">
+          <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div>
+          <span class="font-extrabold tracking-tight text-xl text-white">CRAG<span class="text-blue-200">.Enterprise</span></span>
+          <span class="ml-2 text-xs font-mono text-white/90 px-2.5 py-0.5 rounded-full bg-white/15 border border-white/25">Agentic RAG Engine</span>
+        </div>
+      </div>
+
+      <!-- System Telemetry Badges -->
+      <div class="flex items-center space-x-3 text-xs font-mono">
+        <div id="qdrant-status-badge" class="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/25 text-white shadow-sm backdrop-blur">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Qdrant: Connected</span>
+        </div>
+        <div id="bm25-status-badge" class="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/25 text-white shadow-sm backdrop-blur">
+          <span>BM25: Ready</span>
+        </div>
+        <div id="chunks-count-badge" class="px-3 py-1 rounded-full bg-white/15 border border-white/25 text-white shadow-sm backdrop-blur">
+          <span id="total-chunks-count" class="font-bold">0</span> Chunks
+        </div>
+        <a href="/docs" target="_blank" class="text-white/80 hover:text-white px-2.5 py-1 rounded-lg hover:bg-white/15 transition font-semibold">API Docs ↗</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Header -->
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-4 text-center text-white space-y-2">
+    <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Enterprise Corrective RAG (CRAG)</h1>
+    <p class="text-blue-100 text-sm sm:text-base max-w-2xl mx-auto">
+      Self-reflective agentic retrieval engine with dense Qdrant vector search, sparse BM25, and neural FlashRank reranking.
+    </p>
+  </div>
+
+  <!-- Main Container -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-6">
+
+    <!-- Tab Buttons -->
+    <div class="flex space-x-2 border-b border-white/20 pb-3">
+      <button onclick="switchTab('query-tab')" id="tab-btn-query" class="px-5 py-2.5 font-bold text-sm rounded-xl bg-white text-blue-700 shadow-lg shadow-blue-950/20 transition flex items-center space-x-2">
+        <span>⚡ Agentic CRAG Query Engine</span>
+      </button>
+      <button onclick="switchTab('ingest-tab')" id="tab-btn-ingest" class="px-5 py-2.5 font-semibold text-sm rounded-xl bg-white/15 text-white hover:bg-white/25 border border-white/20 transition flex items-center space-x-2">
+        <span>📂 Knowledge Base & Ingestion</span>
+      </button>
+    </div>
+
+    <!-- TAB 1: QUERY & CRAG AGENT -->
+    <div id="query-tab" class="space-y-6">
+
+      <!-- Interactive CRAG State Machine Flow Visualization -->
+      <div class="white-card rounded-2xl p-6 shadow-xl">
+        <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center space-x-2">
+            <span>LangGraph Agentic State Machine Flow</span>
+            <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+          </h2>
+          <span id="route-summary" class="text-xs font-mono font-medium text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md border border-blue-100">Status: Awaiting query</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-center">
+          <!-- Node 1: Retrieve -->
+          <div id="node-retrieve" class="p-4 rounded-xl border border-slate-200 bg-slate-50 transition-all duration-300">
+            <div class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">Node 1</div>
+            <div class="text-sm font-bold text-slate-800 mt-1">Hybrid Retrieve</div>
+            <div class="text-[11px] text-slate-500 mt-1">Dense Qdrant + BM25 + FlashRank Top-3</div>
+          </div>
+
+          <!-- Node 2: Grade -->
+          <div id="node-grade" class="p-4 rounded-xl border border-slate-200 bg-slate-50 transition-all duration-300">
+            <div class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">Node 2</div>
+            <div class="text-sm font-bold text-slate-800 mt-1">Relevance Grader</div>
+            <div class="text-[11px] text-slate-500 mt-1">Binary Relevance Evaluation ("yes" / "no")</div>
+          </div>
+
+          <!-- Node 3: Transform Query (Loop) -->
+          <div id="node-transform" class="p-4 rounded-xl border border-slate-200 bg-slate-50 transition-all duration-300">
+            <div class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">Node 3 (Loop)</div>
+            <div class="text-sm font-bold text-slate-800 mt-1">Query Rewriter</div>
+            <div class="text-[11px] text-slate-500 mt-1">Semantic Intent Expansion (Max 2)</div>
+          </div>
+
+          <!-- Node 4: Generate -->
+          <div id="node-generate" class="p-4 rounded-xl border border-slate-200 bg-slate-50 transition-all duration-300">
+            <div class="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">Node 4</div>
+            <div class="text-sm font-bold text-slate-800 mt-1">Grounded Generator</div>
+            <div class="text-[11px] text-slate-500 mt-1">Gemini 1.5 Grounded Answer & Citations</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Query Input Box & Sample Pills -->
+      <div class="white-card rounded-2xl p-6 shadow-xl space-y-4">
+        <label for="query-input" class="block text-sm font-bold text-slate-900">
+          Ask Enterprise Knowledge Base:
+        </label>
+        <div class="flex gap-2">
+          <input
+            type="text"
+            id="query-input"
+            placeholder="e.g., Explain how the Raft consensus leader election and quorum commit work"
+            class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium"
+            onkeydown="if(event.key === 'Enter') executeQuery()"
+          />
+          <button
+            onclick="executeQuery()"
+            id="query-btn"
+            class="px-7 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-600/30 flex items-center space-x-2 transition disabled:opacity-50"
+          >
+            <span id="query-btn-text">Run CRAG</span>
+            <svg id="query-spinner" class="w-4 h-4 animate-spin hidden" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Sample Query Pills -->
+        <div class="flex flex-wrap items-center gap-2 pt-1 text-xs">
+          <span class="text-slate-500 font-semibold">Quick Prompts:</span>
+          <button onclick="setQuery('How does leader election and log replication work in the Raft protocol?')" class="px-3 py-1.5 rounded-full bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-700 hover:text-blue-700 font-medium transition">
+            🎯 Raft Leader Election & Consensus
+          </button>
+          <button onclick="setQuery('What are Kubernetes liveness and readiness container probes?')" class="px-3 py-1.5 rounded-full bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-700 hover:text-blue-700 font-medium transition">
+            🚢 Kubernetes Container Probes
+          </button>
+          <button onclick="setQuery('Explain the dense and sparse hybrid retrieval and FlashRank reranking mechanism in CRAG.')" class="px-3 py-1.5 rounded-full bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-700 hover:text-blue-700 font-medium transition">
+            🔬 CRAG Hybrid Search & Reranking
+          </button>
+          <button onclick="setQuery('terms and failure details')" class="px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-medium transition">
+            🔄 Ambiguous Query (Triggers Rewriter Loop)
+          </button>
+        </div>
+      </div>
+
+      <!-- Execution Results Area -->
+      <div id="results-section" class="space-y-6 hidden">
+
+        <!-- Metrics Banner -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="white-card p-4 rounded-xl">
+            <div class="text-[11px] font-mono font-semibold text-slate-500 uppercase">Total Latency</div>
+            <div id="metric-latency" class="text-xl font-extrabold text-blue-600 font-mono mt-1">0 ms</div>
+          </div>
+          <div class="white-card p-4 rounded-xl">
+            <div class="text-[11px] font-mono font-semibold text-slate-500 uppercase">Relevance Grade</div>
+            <div id="metric-relevance" class="text-xl font-extrabold text-emerald-600 font-mono mt-1">YES</div>
+          </div>
+          <div class="white-card p-4 rounded-xl">
+            <div class="text-[11px] font-mono font-semibold text-slate-500 uppercase">Query Rewrites</div>
+            <div id="metric-rewrites" class="text-xl font-extrabold text-indigo-600 font-mono mt-1">0</div>
+          </div>
+          <div class="white-card p-4 rounded-xl">
+            <div class="text-[11px] font-mono font-semibold text-slate-500 uppercase">Reranked Top-N</div>
+            <div id="metric-sources-count" class="text-xl font-extrabold text-slate-900 font-mono mt-1">3 Chunks</div>
+          </div>
+        </div>
+
+        <!-- Query Transformation Notice (if triggered) -->
+        <div id="rewrite-notice" class="hidden p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm space-y-1">
+          <div class="flex items-center space-x-2 font-bold text-amber-800">
+            <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Query Rewriter Triggered:</span>
+          </div>
+          <p class="font-mono text-xs text-amber-800 font-semibold pl-6" id="rewritten-query-text"></p>
+        </div>
+
+        <!-- Insufficient Context Warning (if triggered) -->
+        <div id="warning-notice" class="hidden p-4 rounded-xl bg-red-50 border border-red-200 text-red-900 text-sm space-y-1">
+          <div class="flex items-center space-x-2 font-bold text-red-700">
+            <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>Guardrail Alert:</span>
+          </div>
+          <p class="text-xs text-red-800 pl-6" id="warning-notice-text"></p>
+        </div>
+
+        <!-- Grounded Answer Card -->
+        <div class="white-card rounded-2xl p-6 shadow-xl space-y-3">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+              <span>Grounded Generation with Explicit Citations</span>
+            </h3>
+            <span class="text-xs font-mono text-blue-700 bg-blue-50 px-2 py-0.5 rounded font-semibold border border-blue-100">Gemini 1.5 Flash</span>
+          </div>
+          <div id="answer-content" class="text-slate-800 text-sm leading-relaxed prose prose-slate max-w-none">
+          </div>
+        </div>
+
+        <!-- Reranked Source Chunks Card -->
+        <div class="white-card rounded-2xl p-6 shadow-xl space-y-4">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-800 flex items-center justify-between">
+            <span class="flex items-center space-x-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-indigo-600"></span>
+              <span>Top-3 Reranked Evidence Chunks (Hybrid Search & Reranking)</span>
+            </span>
+            <span class="text-xs font-mono text-slate-500 font-normal">Dense + BM25 &rarr; FlashRank</span>
+          </h3>
+          <div id="sources-container" class="space-y-3">
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 2: INGESTION & CORPUS -->
+    <div id="ingest-tab" class="space-y-6 hidden">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- File Upload Card -->
+        <div class="white-card rounded-2xl p-6 shadow-xl space-y-4">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-800">
+            Upload Document (.md, .txt, .pdf)
+          </h3>
+          <div
+            id="drop-zone"
+            class="border-2 border-dashed border-slate-300 hover:border-blue-600 rounded-2xl p-8 text-center cursor-pointer transition bg-slate-50 hover:bg-blue-50/50"
+            onclick="document.getElementById('file-input').click()"
+          >
+            <input type="file" id="file-input" class="hidden" accept=".txt,.md,.pdf,.json" onchange="uploadSelectedFile()" />
+            <svg class="w-10 h-10 text-blue-600 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <p class="text-sm text-slate-800 font-bold">Click to select or drag and drop file here</p>
+            <p class="text-xs text-slate-500 mt-1">Chunked at 600 chars with 100 char overlap into Qdrant & BM25</p>
+          </div>
+          <div id="upload-status" class="text-xs font-mono text-slate-600"></div>
+        </div>
+
+        <!-- Quick Sample Documents Ingestion -->
+        <div class="white-card rounded-2xl p-6 shadow-xl space-y-4">
+          <h3 class="text-sm font-bold uppercase tracking-wider text-slate-800">
+            Pre-loaded Enterprise Sample Docs
+          </h3>
+          <p class="text-xs text-slate-600">
+            Quickly index verified technical specifications into the dual Qdrant and BM25 indices:
+          </p>
+          <div class="space-y-2">
+            <button
+              onclick="ingestPresetDoc('sample_docs/enterprise_crag_architecture.md', 'enterprise_crag_architecture.md')"
+              class="w-full text-left p-3.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-blue-500 hover:bg-blue-50/40 flex items-center justify-between text-xs text-slate-800 transition"
+            >
+              <div>
+                <div class="font-bold text-slate-900">1. enterprise_crag_architecture.md</div>
+                <div class="text-slate-500 text-[11px] mt-0.5">CRAG agent cycle, dual-retrieval & FlashRank reranker</div>
+              </div>
+              <span class="px-2.5 py-1 rounded bg-blue-100 text-blue-800 text-[11px] font-mono font-semibold">Ingest &rarr;</span>
+            </button>
+
+            <button
+              onclick="ingestPresetDoc('sample_docs/distributed_consensus_raft.md', 'distributed_consensus_raft.md')"
+              class="w-full text-left p-3.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-blue-500 hover:bg-blue-50/40 flex items-center justify-between text-xs text-slate-800 transition"
+            >
+              <div>
+                <div class="font-bold text-slate-900">2. distributed_consensus_raft.md</div>
+                <div class="text-slate-500 text-[11px] mt-0.5">Leader election, log replication & consensus invariants</div>
+              </div>
+              <span class="px-2.5 py-1 rounded bg-blue-100 text-blue-800 text-[11px] font-mono font-semibold">Ingest &rarr;</span>
+            </button>
+
+            <button
+              onclick="ingestPresetDoc('sample_docs/kubernetes_pod_lifecycle.md', 'kubernetes_pod_lifecycle.md')"
+              class="w-full text-left p-3.5 rounded-xl bg-slate-50 border border-slate-200 hover:border-blue-500 hover:bg-blue-50/40 flex items-center justify-between text-xs text-slate-800 transition"
+            >
+              <div>
+                <div class="font-bold text-slate-900">3. kubernetes_pod_lifecycle.md</div>
+                <div class="text-slate-500 text-[11px] mt-0.5">Pod phases, startup/liveness/readiness probes & restart policy</div>
+              </div>
+              <span class="px-2.5 py-1 rounded bg-blue-100 text-blue-800 text-[11px] font-mono font-semibold">Ingest &rarr;</span>
+            </button>
+          </div>
+          <button
+            onclick="ingestAllSampleDocs()"
+            class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition"
+          >
+            ⚡ Ingest All 3 Sample Documents At Once
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Raw Text Ingestion Box -->
+      <div class="white-card rounded-2xl p-6 shadow-xl space-y-4">
+        <h3 class="text-sm font-bold uppercase tracking-wider text-slate-800">
+          Direct Raw Text / Markdown Ingestion
+        </h3>
+        <div class="space-y-3">
+          <input
+            type="text"
+            id="raw-source-name"
+            placeholder="Document Source Title (e.g. system_architecture_v2.md)"
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-mono font-medium"
+          />
+          <textarea
+            id="raw-text-content"
+            rows="6"
+            placeholder="Paste raw markdown or technical documentation content here..."
+            class="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-mono"
+          ></textarea>
+          <button
+            onclick="ingestRawText()"
+            class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md transition"
+          >
+            Chunk & Index Raw Content
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    // Tab switching
+    function switchTab(tabId) {
+      document.getElementById('query-tab').classList.add('hidden');
+      document.getElementById('ingest-tab').classList.add('hidden');
+      document.getElementById(tabId).classList.remove('hidden');
+
+      const btnQuery = document.getElementById('tab-btn-query');
+      const btnIngest = document.getElementById('tab-btn-ingest');
+
+      if (tabId === 'query-tab') {
+        btnQuery.className = "px-5 py-2.5 font-bold text-sm rounded-xl bg-white text-blue-700 shadow-lg shadow-blue-950/20 transition flex items-center space-x-2";
+        btnIngest.className = "px-5 py-2.5 font-semibold text-sm rounded-xl bg-white/15 text-white hover:bg-white/25 border border-white/20 transition flex items-center space-x-2";
+      } else {
+        btnIngest.className = "px-5 py-2.5 font-bold text-sm rounded-xl bg-white text-blue-700 shadow-lg shadow-blue-950/20 transition flex items-center space-x-2";
+        btnQuery.className = "px-5 py-2.5 font-semibold text-sm rounded-xl bg-white/15 text-white hover:bg-white/25 border border-white/20 transition flex items-center space-x-2";
+      }
+    }
+
+    function setQuery(text) {
+      document.getElementById('query-input').value = text;
+      executeQuery();
+    }
+
+    // Refresh system health on load
+    async function refreshHealth() {
+      try {
+        const res = await fetch('/health');
+        if (res.ok) {
+          const data = await res.json();
+          document.getElementById('total-chunks-count').innerText = data.total_documents_indexed;
+        }
+      } catch (e) {
+        console.error("Health check error:", e);
+      }
+    }
+    refreshHealth();
+
+    // Reset node highlighting in visual state machine
+    function resetNodes() {
+      ['node-retrieve', 'node-grade', 'node-transform', 'node-generate'].forEach(id => {
+        const el = document.getElementById(id);
+        el.className = "p-4 rounded-xl border border-slate-200 bg-slate-50 transition-all duration-300";
+      });
+    }
+
+    // Highlight traversed nodes
+    function highlightRoute(history) {
+      resetNodes();
+      history.forEach(step => {
+        if (step === 'retrieve') {
+          document.getElementById('node-retrieve').classList.add('node-active');
+        } else if (step === 'grade_documents') {
+          document.getElementById('node-grade').classList.add('node-active');
+        } else if (step === 'transform_query') {
+          document.getElementById('node-transform').classList.add('node-rewritten');
+        } else if (step === 'generate') {
+          document.getElementById('node-generate').classList.add('node-active');
+        }
+      });
+    }
+
+    // Run CRAG Query
+    async function executeQuery() {
+      const input = document.getElementById('query-input');
+      const query = input.value.trim();
+      if (!query) return;
+
+      const btn = document.getElementById('query-btn');
+      const btnText = document.getElementById('query-btn-text');
+      const spinner = document.getElementById('query-spinner');
+      const summary = document.getElementById('route-summary');
+
+      btn.disabled = true;
+      btnText.innerText = "Executing CRAG...";
+      spinner.classList.remove('hidden');
+      summary.innerText = "State: Ingesting query into LangGraph cycle...";
+
+      resetNodes();
+      document.getElementById('node-retrieve').classList.add('node-active');
+
+      try {
+        const response = await fetch('/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: query })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server returned HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        renderResults(data);
+      } catch (err) {
+        alert("CRAG Engine Query Failed: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btnText.innerText = "Run CRAG";
+        spinner.classList.add('hidden');
+      }
+    }
+
+    function renderResults(data) {
+      document.getElementById('results-section').classList.remove('hidden');
+
+      // Update metrics
+      document.getElementById('metric-latency').innerText = `${data.latency_ms.toFixed(1)} ms`;
+      document.getElementById('metric-relevance').innerText = data.relevance_score.toUpperCase();
+      document.getElementById('metric-relevance').className = data.relevance_score === 'yes' ? 
+        'text-xl font-extrabold text-emerald-600 font-mono mt-1' : 
+        'text-xl font-extrabold text-amber-600 font-mono mt-1';
+      
+      document.getElementById('metric-rewrites').innerText = data.rewrite_count;
+      document.getElementById('metric-sources-count').innerText = `${data.sources.length} Chunks`;
+
+      // State machine visualizer
+      highlightRoute(data.route_history || []);
+      document.getElementById('route-summary').innerText = `Executed Route: ${(data.route_history || []).join(' → ')}`;
+
+      // Rewritten query banner
+      const rewriteNotice = document.getElementById('rewrite-notice');
+      if (data.rewritten_query && data.rewrite_count > 0) {
+        rewriteNotice.classList.remove('hidden');
+        document.getElementById('rewritten-query-text').innerText = `"${data.rewritten_query}"`;
+      } else {
+        rewriteNotice.classList.add('hidden');
+      }
+
+      // Warning alert
+      const warningNotice = document.getElementById('warning-notice');
+      if (data.warning) {
+        warningNotice.classList.remove('hidden');
+        document.getElementById('warning-notice-text').innerText = data.warning;
+      } else {
+        warningNotice.classList.add('hidden');
+      }
+
+      // Answer content
+      const answerEl = document.getElementById('answer-content');
+      if (window.marked) {
+        answerEl.innerHTML = marked.parse(data.answer);
+      } else {
+        answerEl.innerText = data.answer;
+      }
+
+      // Source Chunks
+      const sourcesContainer = document.getElementById('sources-container');
+      sourcesContainer.innerHTML = '';
+
+      if (data.sources && data.sources.length > 0) {
+        data.sources.forEach((src, idx) => {
+          const card = document.createElement('div');
+          card.className = "p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2";
+          
+          const rerankScore = src.score !== null ? src.score.toFixed(4) : 'N/A';
+          const denseScore = src.dense_score !== null ? src.dense_score.toFixed(4) : 'N/A';
+          const sparseScore = src.sparse_score !== null ? src.sparse_score.toFixed(2) : 'N/A';
+
+          card.innerHTML = `
+            <div class="flex items-center justify-between text-xs">
+              <span class="font-mono text-blue-700 font-bold">[#${idx + 1}] ${src.source}</span>
+              <div class="flex items-center space-x-2 font-mono text-[11px]">
+                <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold border border-blue-200">FlashRank: ${rerankScore}</span>
+                <span class="px-2 py-0.5 rounded bg-white text-slate-700 border border-slate-200">Dense: ${denseScore}</span>
+                <span class="px-2 py-0.5 rounded bg-white text-slate-700 border border-slate-200">BM25: ${sparseScore}</span>
+              </div>
+            </div>
+            <p class="text-xs text-slate-700 font-mono leading-relaxed bg-white p-3 rounded-lg border border-slate-200">${escapeHtml(src.content)}</p>
+            <div class="text-[10px] font-mono text-slate-500">Chunk ID: ${src.chunk_id}</div>
+          `;
+          sourcesContainer.appendChild(card);
+        });
+      } else {
+        sourcesContainer.innerHTML = `<div class="text-xs text-slate-500 font-mono">No source chunks retrieved.</div>`;
+      }
+
+      // Smooth scroll to results
+      document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Ingest raw text
+    async function ingestRawText() {
+      const source = document.getElementById('raw-source-name').value.trim() || 'manual_snippet.md';
+      const text = document.getElementById('raw-text-content').value.trim();
+      if (!text) {
+        alert("Please enter text content to ingest.");
+        return;
+      }
+
+      try {
+        const res = await fetch('/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text, source: source })
+        });
+        const data = await res.json();
+        alert(`Successfully indexed ${data.chunks_indexed} chunks for ${data.source}!`);
+        document.getElementById('raw-text-content').value = '';
+        refreshHealth();
+      } catch (e) {
+        alert("Ingestion error: " + e.message);
+      }
+    }
+
+    // Upload file
+    async function uploadSelectedFile() {
+      const fileInput = document.getElementById('file-input');
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const statusEl = document.getElementById('upload-status');
+      statusEl.innerText = `Uploading and processing ${file.name}...`;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch('/ingest', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        statusEl.innerText = `✅ Successfully indexed ${data.chunks_indexed} chunks from ${data.source}!`;
+        refreshHealth();
+      } catch (e) {
+        statusEl.innerText = `❌ Ingestion failed: ${e.message}`;
+      }
+    }
+
+    // Ingest sample preset docs
+    async function ingestPresetDoc(relPath, sourceName) {
+      try {
+        const res = await fetch('/api/ingest-sample', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sample_file: sourceName })
+        });
+        const data = await res.json();
+        alert(`✅ Indexed ${data.chunks_indexed} chunks from ${sourceName}!`);
+        refreshHealth();
+      } catch (e) {
+        alert("Failed to ingest sample doc: " + e.message);
+      }
+    }
+
+    async function ingestAllSampleDocs() {
+      const docs = [
+        'enterprise_crag_architecture.md',
+        'distributed_consensus_raft.md',
+        'kubernetes_pod_lifecycle.md'
+      ];
+      for (const d of docs) {
+        await ingestPresetDoc('', d);
+      }
+    }
+  </script>
+</body>
+</html>
